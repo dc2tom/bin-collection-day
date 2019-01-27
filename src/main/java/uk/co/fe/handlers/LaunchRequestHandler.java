@@ -120,7 +120,7 @@ public class LaunchRequestHandler implements RequestHandler {
                 binCollectionType = binCollectionDayMatcher.group(1).replace("Empty_Standard_", "");
             }
 
-            return format(BIN_COLLECTION_DAY_STRING, binCollectionType.equals("General_Waste") ? "Black" : "Silver", binCollectionDay);
+            return format(BIN_COLLECTION_DAY_STRING, binCollectionType.equals("General_Waste") ? "Black" : "Silver and Green", binCollectionDay);
 
         } catch (IOException e) {
             LOGGER.error(e.getMessage(), e);
