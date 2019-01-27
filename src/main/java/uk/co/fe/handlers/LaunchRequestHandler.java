@@ -73,7 +73,7 @@ public class LaunchRequestHandler implements RequestHandler {
                 handlerInput.getRequestEnvelope().getContext().getSystem().getUser().getPermissions().getConsentToken() != null) {
 
             final Address address = findDeviceAddress(handlerInput);
-            LOGGER.info("Address is: " + address.toString());
+            LOGGER.info("Address obtained from device successfully.");
 
             final String propertyId = obtainPropertyId(address);
             LOGGER.info("Property id is: " + propertyId);
