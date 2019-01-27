@@ -106,7 +106,7 @@ public class LaunchRequestHandler implements RequestHandler {
             }
 
             final String responseBody = IOUtils.toString(response.getEntity().getContent());
-            LOGGER.info("Got response: " + responseBody);
+            LOGGER.info("Got response from cheshire east, parsing it.");
 
             String binCollectionDay = "not known";
             String binCollectionType = "not known";
@@ -120,8 +120,10 @@ public class LaunchRequestHandler implements RequestHandler {
                 binCollectionType = binCollectionDayMatcher.group(1).replace("Empty_Standard_", "");
             }
 
-            return format(BIN_COLLECTION_DAY_STRING, binCollectionType.equals("General_Waste") ? "Black" : "Silver and Green", binCollectionDay);
+            final String returnString = format(BIN_COLLECTION_DAY_STRING, binCollectionType.equals("General_Waste") ? "Black" : "Silver and Green", binCollectionDay);
+            LOGGER.info("Responding with:" + returnString);
 
+            return returnString;
         } catch (IOException e) {
             LOGGER.error(e.getMessage(), e);
         } finally {
