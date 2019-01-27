@@ -2,3 +2,5 @@ bin-collection-day.iml
 dependency-reduced-pom.xml
 .idea/
 target/
+bin-collection-day.ipr
+bin-collection-day.iws
