@@ -1,19 +1,19 @@
 package uk.co.fe.models;
 
-import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Pojo representing bin collection data returned from third-party API.
  */
 public class BinCollectionData {
 
-    @JsonValue
+    @JsonProperty
     private String collectionDay;
 
-    @JsonValue
+    @JsonProperty
     private String collectionDate;
 
-    @JsonValue
+    @JsonProperty
     private String binType;
 
     public BinCollectionData(){
