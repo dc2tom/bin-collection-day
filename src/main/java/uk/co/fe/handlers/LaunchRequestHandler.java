@@ -81,6 +81,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
             return handlerInput.getResponseBuilder()
                 .withSpeech(speechString)
+                .withSimpleCard("Next Bin Collection", speechString)
                 .withShouldEndSession(true)
                 .build();
         }
