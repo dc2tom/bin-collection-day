@@ -21,6 +21,7 @@ public class GenericExceptionHandler implements ExceptionHandler {
         LOG.error("Exception handled: " +  throwable.getMessage());
         return input.getResponseBuilder()
                 .withSpeech("Something went wrong." + throwable.getMessage())
+                .withSimpleCard("Bin Collection Cheshire East", throwable.getMessage())
                 .withShouldEndSession(true)
                 .build();
     }
