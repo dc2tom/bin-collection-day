@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Pojo representing bin collection data returned from third-party API.
  */
 public class BinCollectionData {
-
     @JsonProperty
     private String collectionDay;
 
@@ -23,6 +22,18 @@ public class BinCollectionData {
         this.collectionDay = collectionDay;
         this.collectionDate = collectionDate;
         this.binType = binType;
+    }
+
+    public String getCollectionDay() {
+        return collectionDay;
+    }
+
+    public String getCollectionDate() {
+        return collectionDate;
+    }
+
+    public String getBinType() {
+        return binType;
     }
 
 }

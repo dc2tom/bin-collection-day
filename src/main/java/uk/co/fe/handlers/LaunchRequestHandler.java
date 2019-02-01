@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,9 +47,6 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private static final Pattern PROPERTY_ID_PATTERN = Pattern.compile("data-uprn=\"(\\d+)");
 
-    private static final Pattern BIN_COLLECTION_DAY_PATTERN = Pattern.compile("label for=\"(\\w+)");
-
-    //TODO implement. first match day of week, second match date, third match bin type. Loops 20 times.
     private static final Pattern BIN_COLLECTION_DETAIL_PATTERN = Pattern.compile("label for=\"\\w*\">(.+?)<");
 
     private static final String BIN_COLLECTION_DAY_STRING = "Your %s bin is due on %s.";
@@ -59,6 +58,8 @@ public class LaunchRequestHandler implements RequestHandler {
     private static final String DB_BIN_COLLECTION_DATA_COLUMN = "binCollectionData";
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final DateTimeFormatter BIN_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override
     public boolean canHandle(HandlerInput handlerInput) {
@@ -74,7 +75,7 @@ public class LaunchRequestHandler implements RequestHandler {
             LOGGER.info("Address obtained from device successfully.");
 
             final PropertyData propertyData = obtainPropertyData(address);
-            //TODO error handling routines??
+            //TODO error handling routines?? probably inside methods; return error response within.
 
             final String speechString = buildBinString(propertyData);
 
@@ -90,49 +91,20 @@ public class LaunchRequestHandler implements RequestHandler {
                 .build();
     }
 
-    String buildBinString(PropertyData propertyData) {
-//        CloseableHttpClient httpClient = HttpClientBuilder.create().build();
-//
-//        final HttpGet httpGet = new HttpGet("https://online.cheshireeast.gov.uk/MyCollectionDay/SearchByAjax/GetBartecJobList?uprn=" + propertyData);
-//
-//        try {
-//            LOGGER.info("Calling cheshire east for bin collection days.");
-//            final HttpResponse response = httpClient.execute(httpGet);
-//
-//            if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-//                LOGGER.error("HTTP error: " + response.getStatusLine().getReasonPhrase());
-//            }
-//
-//            final String responseBody = IOUtils.toString(response.getEntity().getContent());
-//            LOGGER.info("Got response from cheshire east, parsing it.");
+    private String buildBinString(PropertyData propertyData) {
+        final List<BinCollectionData> binCollectionData = findNextBinCollectionData(propertyData.getBinCollectionData());
 
-//            String binCollectionDay = "not known";
-//            String binCollectionType = "not known";
-//
-//            final Matcher binCollectionDayMatcher = BIN_COLLECTION_DAY_PATTERN.matcher(responseBody);
-//            if (binCollectionDayMatcher.find()) {
-//                binCollectionDay = binCollectionDayMatcher.group(1);
-//            }
-//
-//            if (binCollectionDayMatcher.find()) {
-//                binCollectionType = binCollectionDayMatcher.group(1).replace("Empty_Standard_", "");
-//            }
+        String binType;
+        if (binCollectionData.size() == 2) {
+            binType = binCollectionData.get(0).getBinType() + " and " + binCollectionData.get(1).getBinType();
+        } else {
+            binType = binCollectionData.get(0).getBinType();
+        }
 
-//            final String returnString = format(BIN_COLLECTION_DAY_STRING, binCollectionType.equals("General_Waste") ? "Black" : "Silver and Green", binCollectionDay);
-//            LOGGER.info("Responding with:" + returnString);
+        final String returnString = format(BIN_COLLECTION_DAY_STRING, binType, binCollectionData.get(0).getCollectionDay());
+        LOGGER.info("Responding with:" + returnString);
 
-            return null;
-//        } catch (IOException e) {
-//            LOGGER.error(e.getMessage(), e);
-//        } finally {
-//            try {
-//                httpClient.close();
-//            } catch (IOException e) {
-//                LOGGER.error(e);
-//            }
-//        }
-//
-//        return null;
+        return returnString;
     }
 
     private Address findDeviceAddress(HandlerInput handlerInput) {
@@ -166,8 +138,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
             return propertyData;
         } catch (UnsupportedEncodingException e) {
-            //TODO
-            e.printStackTrace();
+            //TODO should not be possible
         }
 
         return null;
@@ -221,7 +192,7 @@ public class LaunchRequestHandler implements RequestHandler {
         try {
             itemValues.put(DB_BIN_COLLECTION_DATA_COLUMN, new AttributeValue(objectMapper.writeValueAsString(propertyData.getBinCollectionData())));
         } catch (JsonProcessingException e) {
-            //TODO
+            //TODO handle json exception
             LOGGER.error(e.getMessage(), e);
         }
 
@@ -283,12 +254,12 @@ public class LaunchRequestHandler implements RequestHandler {
             return propertyIdMatcher.group(1);
         } else {
             //TODO handle property ID not found error - is the property in cheshire east? is the address valid?
+            LOGGER.error("Unable to parse response from Cheshire east.");
             return null;
         }
     }
 
      List<BinCollectionData> getBinDataFromWebService(CloseableHttpClient httpClient, String propertyId) {
-
         final HttpGet httpGet = new HttpGet("https://online.cheshireeast.gov.uk/MyCollectionDay/SearchByAjax/GetBartecJobList?uprn=" + propertyId);
 
         try {
@@ -323,9 +294,64 @@ public class LaunchRequestHandler implements RequestHandler {
 
         int i = 0;
         while (i < matches.size()) {
-            binCollectionData.add(new BinCollectionData(matches.get(i++), matches.get(i++), matches.get(i++)));
+            binCollectionData.add(new BinCollectionData(matches.get(i++), matches.get(i++), parseBinType(matches.get(i++))));
         }
 
         return binCollectionData;
     }
+
+    private String parseBinType(String binTypeString) {
+        switch (binTypeString.replace("Empty Standard ", "")) {
+            case "Garden Waste":
+                return "Green";
+            case "Mixed Recycling":
+                return "Silver";
+            default:
+                return "Black";
+        }
+    }
+
+    private List<BinCollectionData> findNextBinCollectionData(List<BinCollectionData> binCollectionData) {
+        final LocalDate now = LocalDate.now();
+
+        int counter = 1;
+        List<BinCollectionData> nextCollectionData = new ArrayList<>();
+        for (BinCollectionData item : binCollectionData) {
+            final LocalDate date = LocalDate.parse(item.getCollectionDate(), BIN_DATE_FORMAT);
+            if (date.isAfter(now)) {
+                if ((binCollectionData.size() - counter) <= 3) {
+                    //TODO we need to invoke another lambda to refresh the data in the database...
+                    // ...or do it here Async.. Another lambda call I think. Could build a layer for the shared stuff.
+                    LOGGER.info("Running low on bin collection data.. needs a refresh.");
+                }
+                if ("Black".equals(item.getBinType()) && nextCollectionData.size() == 0) {
+                    nextCollectionData.add(item);
+                    break;
+                }
+                if ("Green".equals(item.getBinType()) && nextCollectionData.size() < 2) {
+                    if (nextCollectionData.size() == 1 && "Silver".equals(nextCollectionData.get(0).getBinType())) {
+                        nextCollectionData.add(item);
+                        break;
+                    }
+                    nextCollectionData.add(item);
+                }
+                if ("Silver".equals(item.getBinType()) && nextCollectionData.size() < 2) {
+                    if (nextCollectionData.size() == 1 && "Green".equals(nextCollectionData.get(0).getBinType())) {
+                        nextCollectionData.add(item);
+                        break;
+                    }
+                    nextCollectionData.add(item);
+                }
+            }
+            counter++;
+        }
+
+        if (nextCollectionData.size() == 0) {
+            LOGGER.error("No valid stored bin collection data found for this property.");
+            //TODO we have terrible data..
+        }
+
+        return nextCollectionData;
+    }
+
 }
