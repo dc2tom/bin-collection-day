@@ -337,18 +337,24 @@ public class LaunchRequestHandler implements RequestHandler {
                     break;
                 }
                 if ("Green".equals(item.getBinType()) && nextCollectionData.size() < 2) {
-                    if (nextCollectionData.size() == 1 && "Silver".equals(nextCollectionData.get(0).getBinType())) {
+                    if (nextCollectionData.size() == 1 && "Silver".equals(nextCollectionData.get(0).getBinType()) &&
+                            matchesExistingDate(nextCollectionData.get(0).getCollectionDate(), item.getCollectionDate())) {
                         nextCollectionData.add(item);
                         break;
                     }
-                    nextCollectionData.add(item);
+                    if (nextCollectionData.size() == 0) {
+                        nextCollectionData.add(item);
+                    }
                 }
                 if ("Silver".equals(item.getBinType()) && nextCollectionData.size() < 2) {
-                    if (nextCollectionData.size() == 1 && "Green".equals(nextCollectionData.get(0).getBinType())) {
+                    if (nextCollectionData.size() == 1 && "Green".equals(nextCollectionData.get(0).getBinType()) &&
+                            matchesExistingDate(nextCollectionData.get(0).getCollectionDate(), item.getCollectionDate())) {
                         nextCollectionData.add(item);
                         break;
                     }
-                    nextCollectionData.add(item);
+                    if (nextCollectionData.size() == 0) {
+                        nextCollectionData.add(item);
+                    }
                 }
             }
             counter++;
@@ -360,6 +366,10 @@ public class LaunchRequestHandler implements RequestHandler {
         }
 
         return nextCollectionData;
+    }
+
+    private boolean matchesExistingDate(String existingDate, String newDate) {
+        return LocalDate.parse(existingDate, BIN_DATE_FORMAT).equals(LocalDate.parse(newDate, BIN_DATE_FORMAT));
     }
 
     private void refreshBinData(PropertyData propertyData) {
