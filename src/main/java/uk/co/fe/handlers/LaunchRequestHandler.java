@@ -93,7 +93,7 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     private String buildBinString(PropertyData propertyData) {
-        final List<BinCollectionData> binCollectionData = findNextBinCollectionData(propertyData.getBinCollectionData());
+        final List<BinCollectionData> binCollectionData = findNextBinCollectionData(propertyData);
 
         String binType;
         if (binCollectionData.size() == 2) {
@@ -115,7 +115,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
         if (address.getAddressLine1() == null || address.getPostalCode() == null) {
             LOGGER.error("Address is not complete. Line 1: " + address.getAddressLine1() + " Postcode: " + address.getPostalCode());
-            throwBinCollectionException();
+            throw createBinCollectionException();
         }
 
         return address;
@@ -126,27 +126,26 @@ public class LaunchRequestHandler implements RequestHandler {
             final String urlEncodedAddressLine1 = URLEncoder.encode(address.getAddressLine1(), StandardCharsets.UTF_8.name());
 
             PropertyData propertyData = getPropertyDataFromDatabase(urlEncodedAddressLine1);
-            //TODO property data needs to be refreshed and updated? -> call secondary lambda.
 
             if (propertyData == null) {
                 propertyData = getPropertyDataFromWebservice(address);
                 if (propertyData != null) {
                     putPropertyDataInDatabase(urlEncodedAddressLine1, propertyData);
                 } else {
-                    throwBinCollectionException();
+                    throw createBinCollectionException();
                 }
             }
 
             return propertyData;
         } catch (UnsupportedEncodingException e) {
-            //TODO should not be possible
+            //should not be possible
         }
 
-        return null;
+        throw createBinCollectionException();
     }
 
-    private void throwBinCollectionException() {
-        throw new IllegalArgumentException("Sorry, we were unable to find your bin collection details. " +
+    private IllegalArgumentException createBinCollectionException() {
+        return new IllegalArgumentException("Sorry, we were unable to find your bin collection details. " +
                 "Please check the address assigned to your Alexa device is a valid Cheshire East address.");
     }
 
@@ -168,14 +167,15 @@ public class LaunchRequestHandler implements RequestHandler {
                     LOGGER.info("Found propertyId in database: " + propertyId.getS());
                     final AttributeValue binCollectionData = response.getItem().get(DB_BIN_COLLECTION_DATA_COLUMN);
                     if (binCollectionData != null) {
-                        LOGGER.info("Found bin collection data in database:" + binCollectionData.getS());
+                        LOGGER.info("Found bin collection data in database.");
                         final List<BinCollectionData> binCollectionDataList = Arrays.asList(objectMapper.readValue(binCollectionData.getS(), BinCollectionData[].class));
 
-                        return new PropertyData(propertyId.getS(), binCollectionDataList);
+                        return new PropertyData(addressLine1, propertyId.getS(), binCollectionDataList);
                     }
                 }
             }
 
+            LOGGER.info("No data found in database for this property.");
             return null;
         } catch (AmazonServiceException | IOException e) {
             LOGGER.error(e.getMessage(), e);
@@ -191,6 +191,7 @@ public class LaunchRequestHandler implements RequestHandler {
         itemValues.put(DB_PROPERTY_ID_COLUMN, new AttributeValue(propertyData.getPropertyId()));
 
         try {
+            LOGGER.info("Writing to database.");
             itemValues.put(DB_BIN_COLLECTION_DATA_COLUMN, new AttributeValue(objectMapper.writeValueAsString(propertyData.getBinCollectionData())));
         } catch (JsonProcessingException e) {
             //TODO handle json exception
@@ -203,10 +204,10 @@ public class LaunchRequestHandler implements RequestHandler {
             dynamoDB.putItem(DB_TABLE_NAME, itemValues);
         } catch (ResourceNotFoundException e) {
             LOGGER.error(format("Error: The table \"%s\" can't be found.\n", DB_TABLE_NAME));
-            throwBinCollectionException();
+            throw createBinCollectionException();
         } catch (AmazonServiceException e) {
             LOGGER.error(e.getMessage(), e);
-            throwBinCollectionException();
+            throw createBinCollectionException();
         }
     }
 
@@ -217,7 +218,7 @@ public class LaunchRequestHandler implements RequestHandler {
             final String propertyId = getPropertyIdFromWebservice(httpClient, address);
             final List<BinCollectionData> binCollectionData = getBinDataFromWebService(httpClient, propertyId);
 
-            return new PropertyData(propertyId, binCollectionData);
+            return new PropertyData(URLEncoder.encode(address.getAddressLine1(), StandardCharsets.UTF_8.name()), propertyId, binCollectionData);
         } catch (IOException e) {
             LOGGER.error(e.getMessage(), e);
         } finally {
@@ -254,9 +255,8 @@ public class LaunchRequestHandler implements RequestHandler {
         if (propertyIdMatcher.find()) {
             return propertyIdMatcher.group(1);
         } else {
-            //TODO handle property ID not found error - is the property in cheshire east? is the address valid?
             LOGGER.error("Unable to parse response from Cheshire east.");
-            return null;
+            throw createBinCollectionException();
         }
     }
 
@@ -278,9 +278,14 @@ public class LaunchRequestHandler implements RequestHandler {
 
         } catch (IOException e) {
             LOGGER.error(e.getMessage(), e);
+            throw createBinCollectionException();
+        } finally {
+            try {
+                httpClient.close();
+            } catch (IOException e) {
+                LOGGER.error(e.getMessage(), e);
+            }
         }
-
-        return null;
     }
 
     List<BinCollectionData> parseBinResponse(String response) {
@@ -312,18 +317,20 @@ public class LaunchRequestHandler implements RequestHandler {
         }
     }
 
-    private List<BinCollectionData> findNextBinCollectionData(List<BinCollectionData> binCollectionData) {
+    private List<BinCollectionData> findNextBinCollectionData(PropertyData propertyData) {
         final LocalDate now = LocalDate.now();
 
         int counter = 1;
+        boolean refreshed = false;
         List<BinCollectionData> nextCollectionData = new ArrayList<>();
-        for (BinCollectionData item : binCollectionData) {
+        for (BinCollectionData item : propertyData.getBinCollectionData()) {
             final LocalDate date = LocalDate.parse(item.getCollectionDate(), BIN_DATE_FORMAT);
             if (date.isAfter(now)) {
-                if ((binCollectionData.size() - counter) <= 3) {
-                    //TODO we need to invoke another lambda to refresh the data in the database...
-                    // ...or do it here Async.. Another lambda call I think. Could build a layer for the shared stuff.
+                if ((propertyData.getBinCollectionData().size() - counter) <= 3 && !refreshed) {
+                    //TODO invoke another lambda to refresh the data in the database... or make this call async
                     LOGGER.info("Running low on bin collection data.. needs a refresh.");
+                    refreshBinData(propertyData);
+                    refreshed = true;
                 }
                 if ("Black".equals(item.getBinType()) && nextCollectionData.size() == 0) {
                     nextCollectionData.add(item);
@@ -353,6 +360,13 @@ public class LaunchRequestHandler implements RequestHandler {
         }
 
         return nextCollectionData;
+    }
+
+    private void refreshBinData(PropertyData propertyData) {
+        final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+
+        final List<BinCollectionData> binCollectionData = getBinDataFromWebService(httpClient, propertyData.getPropertyId());
+        putPropertyDataInDatabase(propertyData.getAddressLine1(), new PropertyData(propertyData.getAddressLine1(), propertyData.getPropertyId(), binCollectionData));
     }
 
 }
