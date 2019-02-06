@@ -8,6 +8,7 @@ import com.amazon.ask.model.services.deviceAddress.Address;
 import com.amazon.ask.model.services.deviceAddress.DeviceAddressServiceClient;
 import com.amazon.ask.request.Predicates;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
@@ -61,6 +62,14 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private static final DateTimeFormatter BIN_DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
+    private static final AmazonDynamoDB dynamoDB;
+
+    static {
+        AmazonDynamoDBClientBuilder builder = AmazonDynamoDBClientBuilder.standard();
+        builder.setRegion(Regions.EU_WEST_1.getName());
+        dynamoDB = builder.build();
+    }
+
     @Override
     public boolean canHandle(HandlerInput handlerInput) {
         return handlerInput.matches(Predicates.requestType(LaunchRequest.class));
@@ -75,7 +84,6 @@ public class LaunchRequestHandler implements RequestHandler {
             LOGGER.info("Address obtained from device successfully.");
 
             final PropertyData propertyData = obtainPropertyData(address);
-            //TODO error handling routines?? probably inside methods; return error response within.
 
             final String speechString = buildBinString(propertyData);
 
@@ -197,8 +205,6 @@ public class LaunchRequestHandler implements RequestHandler {
             //TODO handle json exception
             LOGGER.error(e.getMessage(), e);
         }
-
-        final AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.defaultClient();
 
         try {
             dynamoDB.putItem(DB_TABLE_NAME, itemValues);
@@ -332,27 +338,23 @@ public class LaunchRequestHandler implements RequestHandler {
                     refreshBinData(propertyData);
                     refreshed = true;
                 }
-                if ("Black".equals(item.getBinType()) && nextCollectionData.size() == 0) {
-                    nextCollectionData.add(item);
-                    break;
-                }
-                if ("Green".equals(item.getBinType()) && nextCollectionData.size() < 2) {
-                    if (nextCollectionData.size() == 1 && "Silver".equals(nextCollectionData.get(0).getBinType()) &&
-                            matchesExistingDate(nextCollectionData.get(0).getCollectionDate(), item.getCollectionDate())) {
+                if (nextCollectionData.size() == 1) {
+                    // Does next bin in the collection belong with the one we are returning?
+                    if (matchesExistingDate(nextCollectionData.get(0).getCollectionDate(), item.getCollectionDate())) {
                         nextCollectionData.add(item);
                         break;
-                    }
-                    if (nextCollectionData.size() == 0) {
-                        nextCollectionData.add(item);
-                    }
-                }
-                if ("Silver".equals(item.getBinType()) && nextCollectionData.size() < 2) {
-                    if (nextCollectionData.size() == 1 && "Green".equals(nextCollectionData.get(0).getBinType()) &&
-                            matchesExistingDate(nextCollectionData.get(0).getCollectionDate(), item.getCollectionDate())) {
-                        nextCollectionData.add(item);
+                    } else {
+                        // We only have one bin to return
                         break;
                     }
-                    if (nextCollectionData.size() == 0) {
+                }
+                if (nextCollectionData.size() == 0) {
+                    // Black bins are only ever collected alone.
+                    if ("Black".equals(item.getBinType())) {
+                        nextCollectionData.add(item);
+                        break;
+                    } else {
+                        // Must be silver or green bin.
                         nextCollectionData.add(item);
                     }
                 }
