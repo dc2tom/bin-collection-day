@@ -161,14 +161,12 @@ public class LaunchRequestHandler implements RequestHandler {
         final Map<String, AttributeValue> keyToGet = new HashMap<>();
             keyToGet.put("addressLine1", new AttributeValue(addressLine1));
 
-        final GetItemRequest propertyIdRequest = new GetItemRequest()
+        final GetItemRequest propertyDataRequest = new GetItemRequest()
                 .withKey(keyToGet)
                 .withTableName(DB_TABLE_NAME);
 
-        final AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.defaultClient();
-
         try {
-            final GetItemResult response = dynamoDB.getItem(propertyIdRequest);
+            final GetItemResult response = dynamoDB.getItem(propertyDataRequest);
             if (response != null && response.getItem() != null) {
                 final AttributeValue propertyId = response.getItem().get(DB_PROPERTY_ID_COLUMN);
                 if (propertyId != null) {
