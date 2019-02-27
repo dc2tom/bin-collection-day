@@ -153,8 +153,9 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     private IllegalArgumentException createBinCollectionException() {
-        return new IllegalArgumentException("Sorry, we were unable to find your bin collection details. " +
-                "Please check the address assigned to your Alexa device is a valid Cheshire East address.");
+        return new IllegalArgumentException("Sorry, I was unable to find your bin collection details. Please check " +
+                "the address assigned to your Alexa device is a valid Cheshire East address. I need the postal code and " +
+                "first line to be filled in or I can't do my bin magic.");
     }
 
     private PropertyData getPropertyDataFromDatabase(String addressLine1) {
