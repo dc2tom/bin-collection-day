@@ -50,7 +50,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private static final Pattern BIN_COLLECTION_DETAIL_PATTERN = Pattern.compile("label for=\"\\w*\">(.+?)<");
 
-    private static final String BIN_COLLECTION_DAY_STRING = "Your %s bin is due on %s.";
+    private static final String BIN_COLLECTION_DAY_STRING = "Your %s bin is due %s.";
 
     private static final String DB_TABLE_NAME = "PropertyData";
 
@@ -88,10 +88,10 @@ public class LaunchRequestHandler implements RequestHandler {
             final String speechString = buildBinString(propertyData);
 
             return handlerInput.getResponseBuilder()
-                .withSpeech(speechString)
-                .withSimpleCard("Next Bin Collection", speechString)
-                .withShouldEndSession(true)
-                .build();
+                    .withSpeech(speechString)
+                    .withSimpleCard("Next Bin Collection", speechString)
+                    .withShouldEndSession(true)
+                    .build();
         }
 
         return handlerInput.getResponseBuilder()
@@ -110,10 +110,20 @@ public class LaunchRequestHandler implements RequestHandler {
             binType = binCollectionData.get(0).getBinType();
         }
 
-        final String returnString = format(BIN_COLLECTION_DAY_STRING, binType, binCollectionData.get(0).getCollectionDay());
+        final String returnString = format(BIN_COLLECTION_DAY_STRING, binType, obtainDateString(binCollectionData.get(0)));
         LOGGER.info("Responding with:" + returnString);
 
         return returnString;
+    }
+
+    private String obtainDateString(BinCollectionData binCollectionData) {
+        final LocalDate date = LocalDate.parse(binCollectionData.getCollectionDate(), BIN_DATE_FORMAT);
+
+        if (LocalDate.now().isEqual(date)) {
+            return "Today";
+        }
+
+        return "on " + binCollectionData.getCollectionDay();
     }
 
     private Address findDeviceAddress(HandlerInput handlerInput) {
@@ -160,7 +170,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private PropertyData getPropertyDataFromDatabase(String addressLine1) {
         final Map<String, AttributeValue> keyToGet = new HashMap<>();
-            keyToGet.put("addressLine1", new AttributeValue(addressLine1));
+        keyToGet.put("addressLine1", new AttributeValue(addressLine1));
 
         final GetItemRequest propertyDataRequest = new GetItemRequest()
                 .withKey(keyToGet)
@@ -192,7 +202,7 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     private void putPropertyDataInDatabase(String addressLine1, PropertyData propertyData) {
-        HashMap<String,AttributeValue> itemValues = new HashMap<>();
+        HashMap<String, AttributeValue> itemValues = new HashMap<>();
 
         itemValues.put("addressLine1", new AttributeValue(addressLine1));
         itemValues.put(DB_PROPERTY_ID_COLUMN, new AttributeValue(propertyData.getPropertyId()));
@@ -265,7 +275,7 @@ public class LaunchRequestHandler implements RequestHandler {
         }
     }
 
-     List<BinCollectionData> getBinDataFromWebService(CloseableHttpClient httpClient, String propertyId) {
+    List<BinCollectionData> getBinDataFromWebService(CloseableHttpClient httpClient, String propertyId) {
         final HttpGet httpGet = new HttpGet("https://online.cheshireeast.gov.uk/MyCollectionDay/SearchByAjax/GetBartecJobList?uprn=" + propertyId);
 
         try {
@@ -330,7 +340,7 @@ public class LaunchRequestHandler implements RequestHandler {
         List<BinCollectionData> nextCollectionData = new ArrayList<>();
         for (BinCollectionData item : propertyData.getBinCollectionData()) {
             final LocalDate date = LocalDate.parse(item.getCollectionDate(), BIN_DATE_FORMAT);
-            if (date.isAfter(now)) {
+            if (date.isAfter(now) || date.isEqual(now)) {
                 if ((propertyData.getBinCollectionData().size() - counter) <= 3 && !refreshed) {
                     //TODO invoke another lambda to refresh the data in the database... or make this call async
                     LOGGER.info("Running low on bin collection data.. needs a refresh.");
@@ -374,6 +384,7 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     private void refreshBinData(PropertyData propertyData) {
+        LOGGER.info("Refreshing bin data for propertyId: " + propertyData.getPropertyId());
         final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
 
         final List<BinCollectionData> binCollectionData = getBinDataFromWebService(httpClient, propertyData.getPropertyId());
