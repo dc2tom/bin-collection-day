@@ -17,7 +17,7 @@ public class SessionEndedRequestHandler implements RequestHandler {
     @Override
     public Optional<Response> handle(HandlerInput handlerInput) {
         return handlerInput.getResponseBuilder()
-                .withSpeech("Unknown bin collection command. Chow.")
+                .withSpeech("Oops. This skill only supports the LaunchRequest intent.")
                 .withShouldEndSession(true)
                 .build();
     }

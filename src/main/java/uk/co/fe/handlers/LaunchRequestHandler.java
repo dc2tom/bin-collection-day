@@ -4,6 +4,7 @@ import com.amazon.ask.dispatcher.request.handler.HandlerInput;
 import com.amazon.ask.dispatcher.request.handler.RequestHandler;
 import com.amazon.ask.model.LaunchRequest;
 import com.amazon.ask.model.Response;
+import com.amazon.ask.model.services.ServiceException;
 import com.amazon.ask.model.services.deviceAddress.Address;
 import com.amazon.ask.model.services.deviceAddress.DeviceAddressServiceClient;
 import com.amazon.ask.request.Predicates;
@@ -44,7 +45,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private static final Logger LOGGER = LogManager.getLogger(LaunchRequestHandler.class);
 
-    private static final String PERMISSIONS = "['read::alexa:device:all:address']";
+    private static final String PERMISSIONS = "read::alexa:device:all:address";
 
     private static final Pattern PROPERTY_ID_PATTERN = Pattern.compile("data-uprn=\"(\\d+)");
 
@@ -77,7 +78,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
     @Override
     public Optional<Response> handle(HandlerInput handlerInput) {
-        if (handlerInput.getRequestEnvelope().getContext().getSystem().getUser().getPermissions() != null &&
+        if (handlerInput.getRequestEnvelope() != null && handlerInput.getRequestEnvelope().getContext() != null && handlerInput.getRequestEnvelope().getContext().getSystem() != null && handlerInput.getRequestEnvelope().getContext().getSystem().getUser() != null && handlerInput.getRequestEnvelope().getContext().getSystem().getUser().getPermissions() != null &&
                 handlerInput.getRequestEnvelope().getContext().getSystem().getUser().getPermissions().getConsentToken() != null) {
 
             final Address address = findDeviceAddress(handlerInput);
@@ -95,7 +96,7 @@ public class LaunchRequestHandler implements RequestHandler {
         }
 
         return handlerInput.getResponseBuilder()
-                .withSpeech("No Permissions found. If you want me to be able to tell you when your bins are due please grant this skill access to full address information in the Amazon Alexa App.")
+                .withSpeech("No Address Permissions found. If you want me to be able to tell you when your bins are due please grant this skill access to full address information in the Amazon Alexa App.")
                 .withAskForPermissionsConsentCard(Collections.singletonList(PERMISSIONS))
                 .build();
     }
@@ -129,7 +130,18 @@ public class LaunchRequestHandler implements RequestHandler {
     private Address findDeviceAddress(HandlerInput handlerInput) {
         final DeviceAddressServiceClient deviceAddressServiceClient = handlerInput.getServiceClientFactory().getDeviceAddressService();
         final String deviceId = handlerInput.getRequestEnvelope().getContext().getSystem().getDevice().getDeviceId();
-        final Address address = deviceAddressServiceClient.getFullAddress(deviceId);
+        Address address;
+
+        try {
+            address = deviceAddressServiceClient.getFullAddress(deviceId);
+        } catch (ServiceException e) {
+            LOGGER.error(e.getMessage(), e);
+            throw createBinCollectionException();
+        }
+
+        if (address == null) {
+            throw createBinCollectionException();
+        }
 
         if (address.getAddressLine1() == null || address.getPostalCode() == null) {
             LOGGER.error("Address is not complete. Line 1: " + address.getAddressLine1() + " Postcode: " + address.getPostalCode());
@@ -261,6 +273,7 @@ public class LaunchRequestHandler implements RequestHandler {
 
         if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
             LOGGER.error("HTTP error: " + response.getStatusLine().getReasonPhrase());
+            throw createParsingException();
         }
 
         final String responseBody = IOUtils.toString(response.getEntity().getContent());
@@ -311,6 +324,10 @@ public class LaunchRequestHandler implements RequestHandler {
             matches.add(matcher.group(1));
         }
 
+        if (matches.isEmpty()){
+            throw createParsingException();
+        }
+
         final List<BinCollectionData> binCollectionData = new ArrayList<>();
 
         int i = 0;
@@ -319,6 +336,12 @@ public class LaunchRequestHandler implements RequestHandler {
         }
 
         return binCollectionData;
+    }
+
+    private RuntimeException createParsingException() {
+        LOGGER.error("Unable to parse bin collection day response.");
+        throw new IllegalArgumentException("Sorry, I was unable to obtain bin collection data for your property. " +
+                "Please make sure you have set a valid Cheshire East address on your device so I can work my bin magic.");
     }
 
     private String parseBinType(String binTypeString) {

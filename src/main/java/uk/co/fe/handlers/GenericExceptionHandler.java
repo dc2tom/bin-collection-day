@@ -20,7 +20,7 @@ public class GenericExceptionHandler implements ExceptionHandler {
     public Optional<Response> handle(HandlerInput input, Throwable throwable) {
         LOG.error("Exception handled: " +  throwable.getMessage());
         return input.getResponseBuilder()
-                .withSpeech("Something went wrong. " + throwable.getMessage())
+                .withSpeech("Oh dear. " + throwable.getMessage())
                 .withSimpleCard("Bin Collection Cheshire East", throwable.getMessage())
                 .withShouldEndSession(true)
                 .build();
