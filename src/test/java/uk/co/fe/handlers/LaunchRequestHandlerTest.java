@@ -1,21 +1,23 @@
 package uk.co.fe.handlers;
 
-import com.amazon.ask.model.services.deviceAddress.Address;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
+
+import java.io.IOException;
+import java.util.List;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.junit.Ignore;
 import org.junit.Test;
+
+import com.amazon.ask.model.services.deviceAddress.Address;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import uk.co.fe.models.BinCollectionData;
 import uk.co.fe.models.PropertyData;
-
-import java.io.IOException;
-import java.util.List;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.MatcherAssert.assertThat;
 
 @Ignore //These are component tests.
 public class LaunchRequestHandlerTest {
@@ -26,8 +28,8 @@ public class LaunchRequestHandlerTest {
     public void shouldReturnPropertyId() {
         // Given
         final Address address = Address.builder()
-                .withAddressLine1("youaddress")
-                .withPostalCode("yourpostcode")
+                .withAddressLine1("XXXX")
+                .withPostalCode("XXXXXX")
                 .build();
 
         // When
@@ -62,9 +64,9 @@ public class LaunchRequestHandlerTest {
         CloseableHttpClient httpClient = HttpClientBuilder.create().build();
 
         // When
-        final List<BinCollectionData> fullResponse = testSubject.getBinDataFromWebService(httpClient,"100010161153");
+        final List<BinCollectionData> fullResponse = testSubject.getBinDataFromWebService(httpClient,"XXXX");
 
-
+        System.out.println(new ObjectMapper().writeValueAsString(fullResponse));
 
         // Then
         httpClient.close();

@@ -1,5 +1,31 @@
 package uk.co.fe.handlers;
 
+import static java.lang.String.format;
+
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.amazon.ask.dispatcher.request.handler.HandlerInput;
 import com.amazon.ask.dispatcher.request.handler.RequestHandler;
 import com.amazon.ask.model.LaunchRequest;
@@ -19,27 +45,9 @@ import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
 import uk.co.fe.models.BinCollectionData;
 import uk.co.fe.models.PropertyData;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import static java.lang.String.format;
 
 public class LaunchRequestHandler implements RequestHandler {
 
@@ -331,7 +339,9 @@ public class LaunchRequestHandler implements RequestHandler {
         final List<BinCollectionData> binCollectionData = new ArrayList<>();
 
         int i = 0;
-        while (i < matches.size()) {
+        while (i < matches.size() && i < 30) {
+            // We get 33 matches but need to stop creating collections at item 30. The final 3 matches are not valid data.
+            // TODO improve the regex to omit the dodgy final 3 matches.
             binCollectionData.add(new BinCollectionData(matches.get(i++), matches.get(i++), parseBinType(matches.get(i++))));
         }
 
@@ -373,6 +383,7 @@ public class LaunchRequestHandler implements RequestHandler {
                 if (nextCollectionData.size() == 1) {
                     // Does next bin in the collection belong with the one we are returning?
                     if (matchesExistingDate(nextCollectionData.get(0).getCollectionDate(), item.getCollectionDate())) {
+                        LOGGER.info("Adding " + item.getBinType() + " bin to response.");
                         nextCollectionData.add(item);
                         break;
                     } else {
@@ -383,10 +394,12 @@ public class LaunchRequestHandler implements RequestHandler {
                 if (nextCollectionData.size() == 0) {
                     // Black bins are only ever collected alone.
                     if ("Black".equals(item.getBinType())) {
+                        LOGGER.info("Adding Black bin to response. No more bins to add.");
                         nextCollectionData.add(item);
                         break;
                     } else {
                         // Must be silver or green bin.
+                        LOGGER.info("Adding " + item.getBinType() + " bin to response.");
                         nextCollectionData.add(item);
                     }
                 }
@@ -395,8 +408,13 @@ public class LaunchRequestHandler implements RequestHandler {
         }
 
         if (nextCollectionData.size() == 0) {
-            LOGGER.error("No valid stored bin collection data found for this property.");
-            //TODO we have terrible data..
+            LOGGER.error("Couldn't find the next bin collection date for this property.");
+            try {
+                LOGGER.error("Data is: " + objectMapper.writeValueAsString(propertyData.getBinCollectionData()));
+            } catch (JsonProcessingException e) {
+                LOGGER.error("Property data doesn't appear to be valid: " + e.getMessage(), e);
+            }
+            throw createParsingException();
         }
 
         return nextCollectionData;
