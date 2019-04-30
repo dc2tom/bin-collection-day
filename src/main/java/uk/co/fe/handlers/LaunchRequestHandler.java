@@ -132,6 +132,10 @@ public class LaunchRequestHandler implements RequestHandler {
             return "Today";
         }
 
+        if (LocalDate.now().plusDays(1).isEqual(date)) {
+            return "Tomorrow";
+        }
+
         return "on " + binCollectionData.getCollectionDay();
     }
 
