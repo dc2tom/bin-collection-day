@@ -1,0 +1,61 @@
+[
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "30/05/2019",
+    "binType": "Black"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "06/06/2019",
+    "binType": "Green"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "06/06/2019",
+    "binType": "Silver"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "13/06/2019",
+    "binType": "Black"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "20/06/2019",
+    "binType": "Green"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "20/06/2019",
+    "binType": "Silver"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "27/06/2019",
+    "binType": "Black"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "04/07/2019",
+    "binType": "Silver"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "04/07/2019",
+    "binType": "Green"
+}
+,
+{
+    "collectionDay": "Thursday",
+    "collectionDate": "11/07/2019",
+    "binType": "Black"
+}
+]

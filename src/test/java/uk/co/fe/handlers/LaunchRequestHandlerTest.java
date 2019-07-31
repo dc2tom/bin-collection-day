@@ -2,10 +2,13 @@ package uk.co.fe.handlers;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.List;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -28,8 +31,8 @@ public class LaunchRequestHandlerTest {
     public void shouldReturnPropertyId() {
         // Given
         final Address address = Address.builder()
-                .withAddressLine1("XXXX")
-                .withPostalCode("XXXXXX")
+                .withAddressLine1("84")
+                .withPostalCode("sk11 7yp")
                 .build();
 
         // When
@@ -64,7 +67,7 @@ public class LaunchRequestHandlerTest {
         CloseableHttpClient httpClient = HttpClientBuilder.create().build();
 
         // When
-        final List<BinCollectionData> fullResponse = testSubject.getBinDataFromWebService(httpClient,"XXXX");
+        final List<BinCollectionData> fullResponse = testSubject.getBinDataFromWebService(httpClient,"100010085283");
 
         System.out.println(new ObjectMapper().writeValueAsString(fullResponse));
 
@@ -78,6 +81,20 @@ public class LaunchRequestHandlerTest {
     public void shouldTest() throws JsonProcessingException {
         final List<BinCollectionData> result = testSubject.parseBinResponse(response);
         System.out.println(new ObjectMapper().writeValueAsString(result));
+    }
+
+    @Test
+    public void shouldConvertResponseIntoBinDays() throws Exception {
+        // Given
+        final String response  = IOUtils.toString(LaunchRequestHandlerTest.class.getClassLoader().getResourceAsStream("problem-data.txt"), Charset.forName("UTF-8"));
+        PropertyData data = new PropertyData("1", "100010085283", new ObjectMapper().readValue(response, new TypeReference<List<BinCollectionData>>(){}));
+
+        // When
+        final List<BinCollectionData> result = testSubject.findNextBinCollectionData(data);
+
+        // Then
+        assertFalse(result.isEmpty());
+
     }
 
 }

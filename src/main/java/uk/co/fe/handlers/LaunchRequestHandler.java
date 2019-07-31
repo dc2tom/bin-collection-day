@@ -369,7 +369,7 @@ public class LaunchRequestHandler implements RequestHandler {
         }
     }
 
-    private List<BinCollectionData> findNextBinCollectionData(PropertyData propertyData) {
+    List<BinCollectionData> findNextBinCollectionData(PropertyData propertyData) {
         final LocalDate now = LocalDate.now();
 
         int counter = 1;
@@ -408,6 +408,14 @@ public class LaunchRequestHandler implements RequestHandler {
                     }
                 }
             }
+
+            if (counter == propertyData.getBinCollectionData().size() && nextCollectionData.size() == 0) {
+                LOGGER.error("Bin collection data may be stale - forcing a refresh.");
+                refreshBinData(propertyData);
+                throw new IllegalArgumentException("Sorry, I was unable to find your Bin Collection day this time, but I have worked some bin magic. " +
+                        "Please try again now that I have refreshed the data for your property.");
+            }
+
             counter++;
         }
 
