@@ -359,11 +359,11 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     private String parseBinType(String binTypeString) {
-        if (binTypeString.contains("Empty Standard Mixed Recycling") {
+        if (binTypeString.contains("Empty Standard Mixed Recycling")) {
             return "Silver";
         }
 
-        if (binTypeString.contains("Empty Bin Standard Garden Waste") {
+        if (binTypeString.contains("Empty Bin Standard Garden Waste")) {
             return "Green";
         }
 
