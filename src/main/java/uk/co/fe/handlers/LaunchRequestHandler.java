@@ -359,14 +359,16 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     private String parseBinType(String binTypeString) {
-        switch (binTypeString.replace("Empty Standard ", "")) {
-            case "Garden Waste":
-                return "Green";
-            case "Mixed Recycling":
-                return "Silver";
-            default:
-                return "Black";
+        if (binTypeString.contains("Empty Standard Mixed Recycling") {
+            return "Silver";
         }
+
+        if (binTypeString.contains("Empty Bin Standard Garden Waste") {
+            return "Green";
+        }
+
+        // must be "Empty Standard General Waste"
+        return "Black";
     }
 
     List<BinCollectionData> findNextBinCollectionData(PropertyData propertyData) {
