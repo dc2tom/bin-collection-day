@@ -73,10 +73,13 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private static final AmazonDynamoDB dynamoDB;
 
+    private static final CloseableHttpClient httpClient;
+
     static {
         AmazonDynamoDBClientBuilder builder = AmazonDynamoDBClientBuilder.standard();
         builder.setRegion(Regions.EU_WEST_1.getName());
         dynamoDB = builder.build();
+        httpClient = HttpClientBuilder.create().build();
     }
 
     @Override
@@ -440,7 +443,6 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private void refreshBinData(PropertyData propertyData) {
         LOGGER.info("Refreshing bin data for propertyId: " + propertyData.getPropertyId());
-        final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
 
         final List<BinCollectionData> binCollectionData = getBinDataFromWebService(httpClient, propertyData.getPropertyId());
         putPropertyDataInDatabase(propertyData.getAddressLine1(), new PropertyData(propertyData.getAddressLine1(), propertyData.getPropertyId(), binCollectionData));
