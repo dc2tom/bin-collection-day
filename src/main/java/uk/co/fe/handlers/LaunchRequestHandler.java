@@ -124,7 +124,7 @@ public class LaunchRequestHandler implements RequestHandler {
         }
 
         final String returnString = format(BIN_COLLECTION_DAY_STRING, binType, obtainDateString(binCollectionData.get(0)));
-        LOGGER.info("Responding with:" + returnString);
+        LOGGER.info("Responding with:{}", returnString);
 
         return returnString;
     }
@@ -138,6 +138,10 @@ public class LaunchRequestHandler implements RequestHandler {
 
         if (LocalDate.now().plusDays(1).isEqual(date)) {
             return "Tomorrow";
+        }
+
+        if (LocalDate.now().plusWeeks(1).isBefore(date)) {
+            return "next " + binCollectionData.getCollectionDay();
         }
 
         return "on " + binCollectionData.getCollectionDay();
