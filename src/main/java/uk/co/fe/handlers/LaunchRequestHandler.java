@@ -23,8 +23,6 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.amazon.ask.dispatcher.request.handler.HandlerInput;
 import com.amazon.ask.dispatcher.request.handler.RequestHandler;
@@ -49,9 +47,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import uk.co.fe.models.BinCollectionData;
 import uk.co.fe.models.PropertyData;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class LaunchRequestHandler implements RequestHandler {
 
-    private static final Logger LOGGER = LogManager.getLogger(LaunchRequestHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(LaunchRequestHandler.class);
 
     private static final String PERMISSIONS = "read::alexa:device:all:address";
 
@@ -267,7 +268,7 @@ public class LaunchRequestHandler implements RequestHandler {
             try {
                 httpClient.close();
             } catch (IOException e) {
-                LOGGER.error(e);
+                LOGGER.error(String.valueOf(e));
             }
         }
 
