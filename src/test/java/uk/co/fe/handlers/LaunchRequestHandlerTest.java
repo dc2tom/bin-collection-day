@@ -5,13 +5,21 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.nio.charset.Charset;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.commons.io.IOUtils;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.TrustAllStrategy;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -31,8 +39,8 @@ public class LaunchRequestHandlerTest {
     public void shouldReturnPropertyId() {
         // Given
         final Address address = Address.builder()
-                .withAddressLine1("84")
-                .withPostalCode("sk11 7yp")
+                .withAddressLine1("1")
+                .withPostalCode("sk11 8ba")
                 .build();
 
         // When
@@ -63,8 +71,11 @@ public class LaunchRequestHandlerTest {
     }
 
     @Test
-    public void shouldConvertFullResponseIntoListOfBinCollectionData() throws IOException {
-        CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+    public void shouldConvertFullResponseIntoListOfBinCollectionData() throws IOException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException {
+        CloseableHttpClient httpClient = HttpClients.custom()
+                .setSSLContext(new SSLContextBuilder().loadTrustMaterial(null, TrustAllStrategy.INSTANCE).build())
+                .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+                .build();
 
         // When
         final List<BinCollectionData> fullResponse = testSubject.getBinDataFromWebService(httpClient,"100010085283");

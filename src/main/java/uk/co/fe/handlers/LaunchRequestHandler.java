@@ -83,6 +83,10 @@ public class LaunchRequestHandler implements RequestHandler {
 
     private static final CloseableHttpClient httpClient;
 
+    public static final String FIND_PROPERTY_ID_BY_POSTCODE_URL = "https://online.cheshireeast.gov.uk/MyCollectionDay/SearchByAjax/Search?postcode=";
+
+    public static final String SEARCH_BY_PROPERTY_ID_URL = "https://online.cheshireeast.gov.uk/MyCollectionDay/SearchByAjax/GetBartecJobList?uprn=";
+
     static {
         AmazonDynamoDBClientBuilder builder = AmazonDynamoDBClientBuilder.standard();
         builder.setRegion(Regions.EU_WEST_1.getName());
@@ -273,13 +277,11 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     private PropertyData getPropertyDataFromWebservice(Address address) {
-        final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
-
         try {
             final String propertyId = getPropertyIdFromWebservice(httpClient, address);
             final List<BinCollectionData> binCollectionData = getBinDataFromWebService(httpClient, propertyId);
 
-            return new PropertyData(URLEncoder.encode(address.getAddressLine1(), StandardCharsets.UTF_8.name()), propertyId, binCollectionData);
+            return new PropertyData(URLEncoder.encode(address.getAddressLine1(), StandardCharsets.UTF_8), propertyId, binCollectionData);
         } catch (IOException e) {
             LOGGER.error(e.getMessage(), e);
         } finally {
@@ -297,7 +299,7 @@ public class LaunchRequestHandler implements RequestHandler {
         HttpGet httpGet = null;
 
         try {
-            httpGet = new HttpGet("https://online.cheshireeast.gov.uk/MyCollectionDay/SearchByAjax/Search?postcode=" + URLEncoder.encode(address.getPostalCode(), "UTF-8") + "&propertyname=" + address.getAddressLine1().split(" ")[0]);
+            httpGet = new HttpGet(FIND_PROPERTY_ID_BY_POSTCODE_URL + URLEncoder.encode(address.getPostalCode(), "UTF-8") + "&propertyname=" + address.getAddressLine1().split(" ")[0]);
         } catch (UnsupportedEncodingException e) {
             LOGGER.error(e.getMessage(), e);
         }
@@ -323,7 +325,7 @@ public class LaunchRequestHandler implements RequestHandler {
     }
 
     List<BinCollectionData> getBinDataFromWebService(CloseableHttpClient httpClient, String propertyId) {
-        final HttpGet httpGet = new HttpGet("https://online.cheshireeast.gov.uk/MyCollectionDay/SearchByAjax/GetBartecJobList?uprn=" + propertyId);
+        final HttpGet httpGet = new HttpGet( SEARCH_BY_PROPERTY_ID_URL + propertyId);
 
         try {
             LOGGER.info("Calling cheshire east for bin collection days.");
@@ -350,28 +352,55 @@ public class LaunchRequestHandler implements RequestHandler {
         }
     }
 
-    List<BinCollectionData> parseBinResponse(String response) {
-        final Matcher matcher = BIN_COLLECTION_DETAIL_PATTERN.matcher(response);
+    private static final int VALID_COLLECTION_LIMIT = 30;
 
+    private static final int COLLECTION_DATA_SIZE = 3; // Number of elements per collection entry (date, description, type)
+
+    List<BinCollectionData> parseBinResponse(String response) {
+        List<String> matches = extractMatches(response);
+        validateMatches(matches);
+        return createBinCollections(matches);
+    }
+
+    private List<String> extractMatches(String response) {
+        final Matcher matcher = BIN_COLLECTION_DETAIL_PATTERN.matcher(response);
         final List<String> matches = new ArrayList<>();
+
         while (matcher.find()) {
             matches.add(matcher.group(1));
         }
+        return matches;
+    }
 
-        if (matches.isEmpty()){
+    private void validateMatches(List<String> matches) {
+        if (matches.isEmpty()) {
             throw createParsingException();
         }
+    }
 
+    private List<BinCollectionData> createBinCollections(List<String> matches) {
         final List<BinCollectionData> binCollectionData = new ArrayList<>();
 
-        int i = 0;
-        while (i < matches.size() && i < 30) {
-            // We get 33 matches but need to stop creating collections at item 30. The final 3 matches are not valid data.
-            // TODO improve the regex to omit the dodgy final 3 matches.
-            binCollectionData.add(new BinCollectionData(matches.get(i++), matches.get(i++), parseBinType(matches.get(i++))));
+        for (int i = 0; i < Math.min(matches.size(), VALID_COLLECTION_LIMIT); i += COLLECTION_DATA_SIZE) {
+            BinCollectionData collection = createBinCollection(matches, i);
+            if (collection != null) {
+                binCollectionData.add(collection);
+            }
         }
 
         return binCollectionData;
+    }
+
+    private BinCollectionData createBinCollection(List<String> matches, int startIndex) {
+        if (startIndex + COLLECTION_DATA_SIZE > matches.size()) {
+            return null;
+        }
+
+        String date = matches.get(startIndex);
+        String description = matches.get(startIndex + 1);
+        String binType = parseBinType(matches.get(startIndex + 2));
+
+        return binType != null ? new BinCollectionData(date, description, binType) : null;
     }
 
     private RuntimeException createParsingException() {
@@ -389,8 +418,11 @@ public class LaunchRequestHandler implements RequestHandler {
             return "Green";
         }
 
-        // must be "Empty Standard General Waste"
-        return "Black";
+        if (binTypeString.contains("Empty Standard General Waste")) {
+            return "Black";
+        }
+
+        return null;
     }
 
     List<BinCollectionData> findNextBinCollectionData(PropertyData propertyData) {
@@ -419,7 +451,7 @@ public class LaunchRequestHandler implements RequestHandler {
                         break;
                     }
                 }
-                if (nextCollectionData.size() == 0) {
+                if (nextCollectionData.isEmpty()) {
                     // Black bins are only ever collected alone.
                     if ("Black".equals(item.getBinType())) {
                         LOGGER.info("Adding Black bin to response. No more bins to add.");
@@ -433,7 +465,7 @@ public class LaunchRequestHandler implements RequestHandler {
                 }
             }
 
-            if (counter == propertyData.getBinCollectionData().size() && nextCollectionData.size() == 0) {
+            if (counter == propertyData.getBinCollectionData().size() && nextCollectionData.isEmpty()) {
                 LOGGER.error("Bin collection data may be stale - forcing a refresh.");
                 refreshBinData(propertyData);
                 throw new IllegalArgumentException("Sorry, I was unable to find your Bin Collection day this time, but I have worked some bin magic. " +
@@ -443,7 +475,7 @@ public class LaunchRequestHandler implements RequestHandler {
             counter++;
         }
 
-        if (nextCollectionData.size() == 0) {
+        if (nextCollectionData.isEmpty()) {
             LOGGER.error("Couldn't find the next bin collection date for this property.");
             try {
                 LOGGER.error("Data is: " + objectMapper.writeValueAsString(propertyData.getBinCollectionData()));
